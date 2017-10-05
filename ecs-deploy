@@ -45,6 +45,7 @@ Optional arguments:
     -t | --timeout          Default is 90s. Script monitors ECS Service for new task definition to be running.
     -e | --tag-env-var      Get image tag name from environment variable. If provided this will override value specified in image name argument.
     -to | --tag-only        New tag to apply to all images defined in the task (multi-container task). If provided this will override value specified in image name argument.
+    -R | --task-role-arn          Force the specified IAM Task Role for the new task definition revision
     --max-definitions       Number of Task Definition Revisions to persist before deregistering oldest revisions.
     --enable-rollback       Rollback task definition if new version is not running before TIMEOUT
     -v | --verbose          Verbose output
@@ -267,14 +268,23 @@ function createNewTaskDefJson() {
     # current definition. If found in current definition, append to JQ filter.
     CONDITIONAL_OPTIONS=(networkMode taskRoleArn placementConstraints)
     for i in "${CONDITIONAL_OPTIONS[@]}"; do
-      re=".*${i}.*"
-      if [[ "$DEF" =~ $re ]]; then
-        NEW_DEF_JQ_FILTER="${NEW_DEF_JQ_FILTER}, ${i}: .${i}"
+      # set taskRoleArn to value of parameter -R. Setting -R to '' clears the taskRoleArn. Omitting -R leaves the old value.
+      if [[ "$i" == "taskRoleArn" && "${TASKROLEARN+x}" == "x" ]]; then
+        val="$TASKROLEARN"
+        [[ -n $TASKROLEARN ]] && val="\"${TASKROLEARN}\""
+      else
+        val=".${i}"
       fi
+      re=".*${i}.*"
+      if [[ "$DEF" =~ $re && -n ${val} ]]; then
+        NEW_DEF_JQ_FILTER="${NEW_DEF_JQ_FILTER}, ${i}: ${val}"
+      fi  
     done
-
+    
     # Build new DEF with jq filter
     NEW_DEF=$(echo $DEF | jq "{${NEW_DEF_JQ_FILTER}}")
+    echo "NEW DEF: $NEW_DEF"
+    exit 1
 
     # If in test mode output $NEW_DEF
     if [ "$BASH_SOURCE" != "$0" ]; then
@@ -480,6 +490,10 @@ if [ "$BASH_SOURCE" == "$0" ]; then
                 ;;
             -e|--tag-env-var)
                 TAGVAR="$2"
+                shift
+                ;;
+            -R|--task-role-arn)
+                TASKROLEARN="$2"
                 shift
                 ;;
             -to|--tag-only)
