@@ -4,6 +4,7 @@
 CLUSTER=false
 SERVICE=false
 TASK_DEFINITION=false
+declare -a CONTAINER_ENVS
 MAX_DEFINITIONS=0
 IMAGE=false
 MIN=false
@@ -45,9 +46,10 @@ Optional arguments:
     -t | --timeout          Default is 90s. Script monitors ECS Service for new task definition to be running.
     -e | --tag-env-var      Get image tag name from environment variable. If provided this will override value specified in image name argument.
     -to | --tag-only        New tag to apply to all images defined in the task (multi-container task). If provided this will override value specified in image name argument.
-    -R | --task-role-arn          Force the specified IAM Task Role for the new task definition revision
+    -R | --task-role-arn    Force the specified IAM Task Role for the new task definition revision
     --max-definitions       Number of Task Definition Revisions to persist before deregistering oldest revisions.
     --enable-rollback       Rollback task definition if new version is not running before TIMEOUT
+    -E                      Container definition environment blocks. E.g., '0=[{"key":"foo","val":"bar}"]' to set the environment for the first container in the container definitions. Can be supplied multiple times.
     -v | --verbose          Verbose output
 
 Requirements:
@@ -286,7 +288,16 @@ function createNewTaskDefJson() {
 
     # Build new DEF with jq filter
     NEW_DEF=$(echo $DEF | jq "{${NEW_DEF_JQ_FILTER}}")
-
+    
+    for ce in ${CONTAINER_ENVS[@]}; do
+        echo "CE: $ce"
+        ENV=(${ce//=/ })
+        CTR_IX=${ENV[0]}
+        ENV=${ENV[1]}
+        echo "setting container definition $CTR_IX env. to $ENV"
+        NEW_DEF=$(echo $NEW_DEF | jq '.containerDefinitions['$CTR_IX'].environment = '$ENV'')
+    done
+    
     # If in test mode output $NEW_DEF
     if [ "$BASH_SOURCE" != "$0" ]; then
       echo $NEW_DEF
@@ -507,6 +518,10 @@ if [ "$BASH_SOURCE" == "$0" ]; then
                 ;;
             --enable-rollback)
                 ENABLE_ROLLBACK=true
+                ;;
+            -E)
+                CONTAINER_ENVS+=("$2")
+                shift
                 ;;
             -v|--verbose)
                 VERBOSE=true

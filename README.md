@@ -33,6 +33,7 @@ Usage
                                             Max definitions causes all task revisions not matching criteria to be deregistered, even if they're created manually.
                                             Script will only perform deregistration if deployment succeeds.
         --enable-rollback             Rollback task definition if new version is not running before TIMEOUT
+        -E                            Container definition environment blocks. E.g., '0=[{"key": "foo","val":"bar}"]' to set the environment for the first container in the container definitions. Can be supplied multiple times.
         -v | --verbose                Verbose output
 
     Examples:
